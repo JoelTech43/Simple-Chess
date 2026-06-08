@@ -5,12 +5,13 @@ CWD = Path.cwd()
 ASSETS = CWD / "assets"
 
 class Piece:
-    def __init__(self, colour, start_pos):
-        self._colour = colour
+    def __init__(self, white, start_pos):
+        self._white = white
+        self._colour = "white" if white else "black"
         self._captured = False
         self._START_BOARD_POS = start_pos
         self._board_pos = start_pos
-        self._IMAGE_PATH = ASSETS/f"{colour}-pawn.png"
+        self._IMAGE_PATH = ASSETS/f"{self._colour}-pawn.png"
         self._image = None
     
     def draw(self, window, board_screen_pos, square_size):
@@ -23,30 +24,30 @@ class Piece:
         window.blit(self._image, (x_pos, y_pos))
 
 class Pawn(Piece):
-    def __init__(self, colour, start_pos):
-        super().__init__(colour, start_pos)
+    def __init__(self, white, start_pos):
+        super().__init__(white, start_pos)
 
 class Rook(Piece):
-    def __init__(self, colour, start_pos):
-        super().__init__(colour, start_pos)
-        self._IMAGE_PATH = ASSETS/f"{colour}-rook.png"
+    def __init__(self, white, start_pos):
+        super().__init__(white, start_pos)
+        self._IMAGE_PATH = ASSETS/f"{self._colour}-rook.png"
 
 class Knight(Piece):
-    def __init__(self, colour, start_pos):
-        super().__init__(colour, start_pos)
-        self._IMAGE_PATH = ASSETS/f"{colour}-knight.png"
+    def __init__(self, white, start_pos):
+        super().__init__(white, start_pos)
+        self._IMAGE_PATH = ASSETS/f"{self._colour}-knight.png"
 
 class Bishop(Piece):
-    def __init__(self, colour, start_pos):
-        super().__init__(colour, start_pos)
-        self._IMAGE_PATH = ASSETS/f"{colour}-bishop.png"
+    def __init__(self, white, start_pos):
+        super().__init__(white, start_pos)
+        self._IMAGE_PATH = ASSETS/f"{self._colour}-bishop.png"
 
 class Queen(Piece):
-    def __init__(self, colour, start_pos):
-        super().__init__(colour, start_pos)
-        self._IMAGE_PATH = ASSETS/f"{colour}-queen.png"
+    def __init__(self, white, start_pos):
+        super().__init__(white, start_pos)
+        self._IMAGE_PATH = ASSETS/f"{self._colour}-queen.png"
 
 class King(Piece):
-    def __init__(self, colour, start_pos):
-        super().__init__(colour, start_pos)
-        self._IMAGE_PATH = ASSETS/f"{colour}-king.png"
+    def __init__(self, white, start_pos):
+        super().__init__(white, start_pos)
+        self._IMAGE_PATH = ASSETS/f"{self._colour}-king.png"
