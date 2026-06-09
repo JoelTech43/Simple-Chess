@@ -9,7 +9,7 @@ class Piece:
         self._white = white
         self._colour = "white" if white else "black"
         self._captured = False
-        self._START_BOARD_POS = start_pos
+        self._moved = False
         self._board_pos = start_pos
         self._IMAGE_PATH = ASSETS/f"{self._colour}-pawn.png"
         self._image = None

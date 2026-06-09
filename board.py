@@ -88,7 +88,7 @@ class Board:
                                 target_coords.append((coord[0]-1,coord[1]+1))
                     
                 if 0 <= coord[1] <= 5:
-                    if square._board_pos == square._START_BOARD_POS and self.__board[coord[1]+1][coord[0]] == None:
+                    if (not square._moved) and self.__board[coord[1]+1][coord[0]] == None:
                         if self.__board[coord[1]+2][coord[0]] == None:
                             target_coords.append((coord[0],coord[1]+2))
             else:
@@ -105,7 +105,7 @@ class Board:
                                 target_coords.append((coord[0]-1,coord[1]-1))
                     
                 if 2 <= coord[1] <= 7:
-                    if square._board_pos == square._START_BOARD_POS and self.__board[coord[1]-1][coord[0]] == None:
+                    if (not square._moved) and self.__board[coord[1]-1][coord[0]] == None:
                         if self.__board[coord[1]-2][coord[0]] == None:
                             target_coords.append((coord[0],coord[1]-2))
         
