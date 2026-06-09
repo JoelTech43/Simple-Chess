@@ -8,6 +8,7 @@ board_size = 600
 window = pygame.display.set_mode((640,640))
 pygame.display.set_caption("Simple Chess")
 board = Board(board_size, board_pos, window)
+board.reset_pieces()
 
 running = True
 while running:
@@ -20,7 +21,6 @@ while running:
                 board.handle_mouse_click(mouse_x, mouse_y)
                 
     window.fill((0,0,0))
-    board.reset_pieces()
     board.draw_game()
     
     pygame.display.flip()
