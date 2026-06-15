@@ -17,9 +17,10 @@ class Board:
 
         self.__piece_selected = False
         self.__selected_coord = (-1, -1)
-        self.__target_coords = list()
+        self.__target_coords = list() # list of tuples. each tuple contains a tuple and a boolean. tuple is target coord, boolean is special move - true if en passant, castling or pawn promotion as more to do.
 
         self.__white_turn = True
+        self.__move_count = 0
 
     def reset_pieces(self):
         self.__board = [[None for i in range(8)] for j in range(8)]
@@ -44,6 +45,9 @@ class Board:
         self.__board[7][7] = Rook(False, (7,7))
         for i in range(8):
             self.__board[6][i] = Pawn(False, (i,6))
+        
+        self.__white_turn = True
+        self.__move_count = 0
     
     def draw_game(self):
         for i in range(8):
@@ -61,6 +65,42 @@ class Board:
                 if square != None:
                     square.draw(self.__window, self.__screen_pos, self.__square_size)
     
+    def en_passant_possible(self, coord):
+        square = self.__board[coord[1]][coord[0]]
+        targets = []
+
+        if type(square) == Pawn:
+            if square.white and coord[1] == 4:
+                if coord[0] >= 1:
+                    left = (coord[0]-1, coord[1])
+                    left_square = self.__board[left[1]][left[0]]
+                    if type(left_square) == Pawn:
+                        if left_square.moves == 1 and left_square.last_move_count_moved == self.__move_count-1 and self.__board[coord[1]-1][coord[0]-1] == None:
+                            targets.append(((coord[0]-1, coord[1]+1), True))
+
+                if coord[0] <= 6:
+                    right = (coord[0]+1, coord[1])
+                    right_square = self.__board[right[1]][right[0]]
+                    if type(right_square) == Pawn:
+                        if right_square.moves == 1 and right_square.last_move_count_moved == self.__move_count-1 and self.__board[coord[1]+1][coord[0]-1] == None:
+                            targets.append(((coord[0]+1, coord[1]+1), True))
+            
+            elif (not square.white) and coord[1] == 3:
+                if coord[0] >= 1:
+                    left = (coord[0]-1, coord[1])
+                    left_square = self.__board[left[1]][left[0]]
+                    if type(left_square) == Pawn:
+                        if left_square.moves == 1 and left_square.last_move_count_moved == self.__move_count-1 and self.__board[coord[1]+1][coord[0]-1] == None:
+                            targets.append(((coord[0]-1, coord[1]-1), True))
+
+                if coord[0] <= 6:
+                    right = (coord[0]+1, coord[1])
+                    right_square = self.__board[right[1]][right[0]]
+                    if type(right_square) == Pawn:
+                        if right_square.moves == 1 and right_square.last_move_count_moved == self.__move_count-1 and self.__board[coord[1]+1][coord[0]+1] == None:
+                            targets.append(((coord[0]+1, coord[1]-1), True))
+        return targets
+
     def screen_coord_2_cell_coord(self, screen_x, screen_y):
         if self.__screen_pos[0]<=screen_x<=self.__screen_pos[0]+self.__size_px and self.__screen_pos[1]<=screen_y<=self.__screen_pos[1]+self.__size_px:
             rel_screen_x, rel_screen_y = screen_x-self.__screen_pos[0], screen_y-self.__screen_pos[1]
@@ -70,110 +110,111 @@ class Board:
 
     def get_target_coords(self, coord): #does not include checking if target would leave own king in check
         square = self.__board[coord[1]][coord[0]]
-        white = square._white if square != None else None
+        white = square.white if square != None else None
 
         target_coords = []
         if type(square) == Pawn:
+            target_coords.extend(self.en_passant_possible(coord))
             if white:
                 if 0 <= coord[1] <= 6:
                     if self.__board[coord[1]+1][coord[0]] == None:
-                        target_coords.append((coord[0],coord[1]+1))
+                        target_coords.append(((coord[0],coord[1]+1), False))
                     if 0 <= coord[0] <= 6:
                         if type(self.__board[coord[1]+1][coord[0]+1]) in (King, Queen, Knight, Bishop, Rook, Pawn):
-                            if not self.__board[coord[1]+1][coord[0]+1]._white:
-                                target_coords.append((coord[0]+1,coord[1]+1))
+                            if not self.__board[coord[1]+1][coord[0]+1].white:
+                                target_coords.append(((coord[0]+1,coord[1]+1), False))
                     if 1 <= coord[0] <= 7:
                         if type(self.__board[coord[1]+1][coord[0]-1]) in (King, Queen, Knight, Bishop, Rook, Pawn):
-                            if not self.__board[coord[1]+1][coord[0]-1]._white:
-                                target_coords.append((coord[0]-1,coord[1]+1))
+                            if not self.__board[coord[1]+1][coord[0]-1].white:
+                                target_coords.append(((coord[0]-1,coord[1]+1), False))
                     
                 if 0 <= coord[1] <= 5:
                     if (not square._moved) and self.__board[coord[1]+1][coord[0]] == None:
                         if self.__board[coord[1]+2][coord[0]] == None:
-                            target_coords.append((coord[0],coord[1]+2))
+                            target_coords.append(((coord[0],coord[1]+2), False))
             else:
                 if 1 <= coord[1] <= 7:
                     if self.__board[coord[1]-1][coord[0]] == None:
-                        target_coords.append((coord[0],coord[1]-1))
+                        target_coords.append(((coord[0],coord[1]-1), False))
                     if 0 <= coord[0] <= 6:
                         if type(self.__board[coord[1]-1][coord[0]+1]) in (King, Queen, Knight, Bishop, Rook, Pawn):
-                            if self.__board[coord[1]-1][coord[0]+1]._white:
-                                target_coords.append((coord[0]+1,coord[1]-1))
+                            if self.__board[coord[1]-1][coord[0]+1].white:
+                                target_coords.append(((coord[0]+1,coord[1]-1), False))
                     if 1 <= coord[0] <= 7:
                         if type(self.__board[coord[1]-1][coord[0]-1]) in (King, Queen, Knight, Bishop, Rook, Pawn):
-                            if self.__board[coord[1]-1][coord[0]-1]._white:
-                                target_coords.append((coord[0]-1,coord[1]-1))
+                            if self.__board[coord[1]-1][coord[0]-1].white:
+                                target_coords.append(((coord[0]-1,coord[1]-1), False))
                     
                 if 2 <= coord[1] <= 7:
                     if (not square._moved) and self.__board[coord[1]-1][coord[0]] == None:
                         if self.__board[coord[1]-2][coord[0]] == None:
-                            target_coords.append((coord[0],coord[1]-2))
+                            target_coords.append(((coord[0],coord[1]-2), False))
         
         elif type(square) == Rook:
             checking_square_coord = (coord[0], coord[1]+1)
             while checking_square_coord[1] <= 7 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check below rook
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0], checking_square_coord[1]+1)
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
             
             checking_square_coord = (coord[0], coord[1]-1)
             while checking_square_coord[1] >= 0 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check above rook
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0], checking_square_coord[1]-1)
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
             
             checking_square_coord = (coord[0]+1, coord[1])
             while checking_square_coord[0] <= 7 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check to right of rook
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0]+1, checking_square_coord[1])
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
             
             checking_square_coord = (coord[0]-1, coord[1])
             while checking_square_coord[0] >= 0 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check to left of rook
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0]-1, checking_square_coord[1])
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
         
         elif type(square) == Bishop:
             checking_square_coord = (coord[0]+1, coord[1]+1)
             while checking_square_coord[1] <= 7 and checking_square_coord[0] <= 7 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check below-right of bishop
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0]+1, checking_square_coord[1]+1)
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
             
             checking_square_coord = (coord[0]+1, coord[1]-1)
             while checking_square_coord[1] >= 0 and checking_square_coord[0] <= 7 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check above-right of bishop
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0]+1, checking_square_coord[1]-1)
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
             
             checking_square_coord = (coord[0]-1, coord[1]+1)
             while checking_square_coord[1] <= 7 and checking_square_coord[0] >= 0 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check to below-left of bishop
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0]-1, checking_square_coord[1]+1)
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
             
             checking_square_coord = (coord[0]-1, coord[1]-1)
             while checking_square_coord[1] >= 0 and checking_square_coord[0] >= 0 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check to above-left of bishop
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0]-1, checking_square_coord[1]-1)
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
         
         elif type(square) == Knight:
             targets = [
@@ -189,73 +230,73 @@ class Board:
             
             for target in targets:
                 if 0 <= target[0] <= 7 and 0 <= target[1] <= 7:
-                    if (self.__board[target[1]][target[0]] == None or self.__board[target[1]][target[0]]._white == (not white)):
-                        target_coords.append(target)
+                    if (self.__board[target[1]][target[0]] == None or self.__board[target[1]][target[0]].white == (not white)):
+                        target_coords.append((target, False))
 
         elif type(square) == Queen:
             checking_square_coord = (coord[0], coord[1]+1)
             while checking_square_coord[1] <= 7 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check below rook
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0], checking_square_coord[1]+1)
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
             
             checking_square_coord = (coord[0], coord[1]-1)
             while checking_square_coord[1] >= 0 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check above rook
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0], checking_square_coord[1]-1)
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
             
             checking_square_coord = (coord[0]+1, coord[1])
             while checking_square_coord[0] <= 7 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check to right of rook
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0]+1, checking_square_coord[1])
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
             
             checking_square_coord = (coord[0]-1, coord[1])
             while checking_square_coord[0] >= 0 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check to left of rook
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0]-1, checking_square_coord[1])
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
             
             checking_square_coord = (coord[0]+1, coord[1]+1)
             while checking_square_coord[1] <= 7 and checking_square_coord[0] <= 7 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check below-right of bishop
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0]+1, checking_square_coord[1]+1)
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
             
             checking_square_coord = (coord[0]+1, coord[1]-1)
             while checking_square_coord[1] >= 0 and checking_square_coord[0] <= 7 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check above-right of bishop
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0]+1, checking_square_coord[1]-1)
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
             
             checking_square_coord = (coord[0]-1, coord[1]+1)
             while checking_square_coord[1] <= 7 and checking_square_coord[0] >= 0 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check to below-left of bishop
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0]-1, checking_square_coord[1]+1)
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
             
             checking_square_coord = (coord[0]-1, coord[1]-1)
             while checking_square_coord[1] >= 0 and checking_square_coord[0] >= 0 and self.__board[checking_square_coord[1]][checking_square_coord[0]] == None: #check to above-left of bishop
-                target_coords.append(checking_square_coord)
+                target_coords.append((checking_square_coord, False))
                 checking_square_coord = (checking_square_coord[0]-1, checking_square_coord[1]-1)
             if 0 <= checking_square_coord[0] <= 7 and 0 <= checking_square_coord[1] <= 7:
-                if self.__board[checking_square_coord[1]][checking_square_coord[0]]._white == (not white):
-                    target_coords.append(checking_square_coord)
+                if self.__board[checking_square_coord[1]][checking_square_coord[0]].white == (not white):
+                    target_coords.append((checking_square_coord, False))
         
         elif type(square) == King:
             targets = [
@@ -271,8 +312,8 @@ class Board:
             
             for target in targets:
                 if 0 <= target[0] <= 7 and 0 <= target[1] <= 7:
-                    if (self.__board[target[1]][target[0]] == None or self.__board[target[1]][target[0]]._white == (not white)):
-                        target_coords.append(target)
+                    if (self.__board[target[1]][target[0]] == None or self.__board[target[1]][target[0]].white == (not white)):
+                        target_coords.append((target, False))
         
         return target_coords
 
@@ -287,35 +328,120 @@ class Board:
         for row in board:
             for square in row:
                 if type(square) == King:
-                    if square._white:
-                        white_king_coord = square._board_pos
+                    if square.white:
+                        white_king_coord = square.board_pos
                     else:
-                        black_king_coord = square._board_pos
+                        black_king_coord = square.board_pos
                 elif type(square) in [Queen, Knight, Bishop, Rook, Pawn]:
-                    if square._white:
-                        white_target_coords.update(self.get_target_coords(square._board_pos))
+                    if square.white:
+                        white_target_coords.update(self.get_target_coords(square.board_pos))
                     else:
-                        black_target_coords.update(self.get_target_coords(square._board_pos))
+                        black_target_coords.update(self.get_target_coords(square.board_pos))
         
         return white_king_coord in black_target_coords, black_king_coord in white_target_coords
 
     def handle_mouse_click(self, mouse_x, mouse_y):
         cell_coord = self.screen_coord_2_cell_coord(mouse_x, mouse_y)
         if self.__piece_selected:
-            if cell_coord in self.__target_coords:
-                temp = self.__board[cell_coord[1]][cell_coord[0]]
-                self.__board[cell_coord[1]][cell_coord[0]] = self.__board[self.__selected_coord[1]][self.__selected_coord[0]]
-                self.__board[self.__selected_coord[1]][self.__selected_coord[0]] = None
-                self.__board[cell_coord[1]][cell_coord[0]]._board_pos = cell_coord
-                self.__white_turn = not self.__white_turn
+            actual_targets = [a[0] for a in self.__target_coords]
+            selected_square = self.__board[self.__selected_coord[1]][self.__selected_coord[0]]
+            if cell_coord in actual_targets:
+                ind = actual_targets.index(cell_coord)
 
-                white_in_check, black_in_check = self.check_4_checks()
-                print(str(white_in_check)+" "+str(black_in_check))
-                if (not self.__white_turn and white_in_check) or ((self.__white_turn) and black_in_check): #look at not self.__white_turn when looking if white is in check as it is switched to black's turn as soon as white move made so if it is black's turn, white must have just moved. Vice versa for black.
-                    self.__board[self.__selected_coord[1]][self.__selected_coord[0]] = self.__board[cell_coord[1]][cell_coord[0]]
-                    self.__board[self.__selected_coord[1]][self.__selected_coord[0]]._board_pos = self.__selected_coord
-                    self.__board[cell_coord[1]][cell_coord[0]] = temp
+                if self.__target_coords[ind][1] == False: #if not a special move.
+                    temp = self.__board[cell_coord[1]][cell_coord[0]]
+                    self.__board[cell_coord[1]][cell_coord[0]] = self.__board[self.__selected_coord[1]][self.__selected_coord[0]]
+                    self.__board[self.__selected_coord[1]][self.__selected_coord[0]] = None
+                    self.__board[cell_coord[1]][cell_coord[0]].board_pos = cell_coord
+                    self.__board[cell_coord[1]][cell_coord[0]].moves += 1
+                    temp_move_count = self.__board[cell_coord[1]][cell_coord[0]].last_move_count_moved
+                    self.__board[cell_coord[1]][cell_coord[0]].last_move_count_moved = self.__move_count
                     self.__white_turn = not self.__white_turn
+                    self.__move_count += 1
+
+                    white_in_check, black_in_check = self.check_4_checks()
+                    if (not self.__white_turn and white_in_check) or ((self.__white_turn) and black_in_check): #look at not self.__white_turn when looking if white is in check as it is switched to black's turn as soon as white move made so if it is black's turn, white must have just moved. Vice versa for black.
+                        self.__board[self.__selected_coord[1]][self.__selected_coord[0]] = self.__board[cell_coord[1]][cell_coord[0]]
+                        self.__board[self.__selected_coord[1]][self.__selected_coord[0]].board_pos = self.__selected_coord
+                        self.__board[self.__selected_coord[1]][self.__selected_coord[0]].moves -= 1
+                        self.__board[self.__selected_coord[1]][self.__selected_coord[0]].last_move_count_moved = temp_move_count
+                        self.__board[cell_coord[1]][cell_coord[0]] = temp
+                        self.__white_turn = not self.__white_turn
+                        self.__move_count -= 1
+                
+                elif type(selected_square) == Pawn:
+                    if self.__white_turn:
+                        if cell_coord[1] == 7:
+                            ... #white pawn promotion
+                        else:
+                            pawn = self.__board[self.__selected_coord[1]][self.__selected_coord[0]]
+                            other = self.__board[cell_coord[1]-1][cell_coord[0]]
+                            self.__board[cell_coord[1]][cell_coord[0]] = pawn
+                            self.__board[self.__selected_coord[1]][self.__selected_coord[0]] = None
+                            self.__board[cell_coord[1]-1][cell_coord[0]] = None
+                            self.__board[cell_coord[1]][cell_coord[0]].board_pos = cell_coord
+                            self.__board[cell_coord[1]][cell_coord[0]].moves += 1
+                            temp_move_count = self.__board[cell_coord[1]][cell_coord[0]].last_move_count_moved
+                            self.__board[cell_coord[1]][cell_coord[0]].last_move_count_moved = self.__move_count
+                            self.__white_turn = not self.__white_turn
+                            self.__move_count += 1
+
+                            white_in_check, black_in_check = self.check_4_checks()
+                            if (not self.__white_turn) and white_in_check:
+                                self.__board[self.__selected_coord[1]][self.__selected_coord[0]] = pawn
+                                self.__board[cell_coord[1]-1][cell_coord[0]] = other
+                                self.__board[cell_coord[1]][cell_coord[0]] = None
+                                self.__board[self.__selected_coord[1]][self.__selected_coord[0]].board_pos = cell_coord
+                                self.__board[self.__selected_coord[1]][self.__selected_coord[0]].moves -= 1
+                                self.__board[self.__selected_coord[1]][self.__selected_coord[0]].last_move_count_moved = temp_move_count
+                                self.__white_turn = not self.__white_turn
+                                self.__move_count -= 1
+                            
+                            # print(f"Selected Cell: {self.__board[self.__selected_coord[1]][self.__selected_coord[0]]}")
+                            # print(f"Target cell: {self.__board[cell_coord[1]][cell_coord[0]]}")
+                            # print(f"Passed pawn cell: {self.__board[cell_coord[1]+1][cell_coord[0]]}")
+                    else:
+                        if cell_coord[1] == 0:
+                            ... #black pawn promotion
+                        else:
+                            pawn = self.__board[self.__selected_coord[1]][self.__selected_coord[0]]
+                            other = self.__board[cell_coord[1]+1][cell_coord[0]]
+                            self.__board[cell_coord[1]][cell_coord[0]] = pawn
+                            self.__board[self.__selected_coord[1]][self.__selected_coord[0]] = None
+                            self.__board[cell_coord[1]+1][cell_coord[0]] = None
+                            self.__board[cell_coord[1]][cell_coord[0]].board_pos = cell_coord
+                            self.__board[cell_coord[1]][cell_coord[0]].moves += 1
+                            temp_move_count = self.__board[cell_coord[1]][cell_coord[0]].last_move_count_moved
+                            self.__board[cell_coord[1]][cell_coord[0]].last_move_count_moved = self.__move_count
+                            self.__white_turn = not self.__white_turn
+                            self.__move_count += 1
+
+                            white_in_check, black_in_check = self.check_4_checks()
+                            if self.__white_turn and black_in_check:
+                                self.__board[self.__selected_coord[1]][self.__selected_coord[0]] = pawn
+                                self.__board[cell_coord[1]+1][cell_coord[0]] = other
+                                self.__board[cell_coord[1]][cell_coord[0]] = None
+                                self.__board[self.__selected_coord[1]][self.__selected_coord[0]].board_pos = cell_coord
+                                self.__board[self.__selected_coord[1]][self.__selected_coord[0]].moves -= 1
+                                self.__board[self.__selected_coord[1]][self.__selected_coord[0]].last_move_count_moved = temp_move_count
+                                self.__white_turn = not self.__white_turn
+                                self.__move_count -= 1
+                            
+                            # print(f"Selected Cell: {self.__board[self.__selected_coord[1]][self.__selected_coord[0]]}")
+                            # print(f"Target cell: {self.__board[cell_coord[1]][cell_coord[0]]}")
+                            # print(f"Passed pawn cell: {self.__board[cell_coord[1]+1][cell_coord[0]]}")
+                
+                elif type(selected_square) == King:
+                    if self.__white_turn:
+                        if cell_coord[0] == 1:
+                            ... #white king side castle
+                        else:
+                            ... #white queen side castle
+                    else:
+                        if cell_coord[0] == 1:
+                            ... #black king side castle
+                        else:
+                            ... #black queen side castle
 
             self.__piece_selected = False
             self.__selected_coord = (-1, -1)
@@ -324,11 +450,11 @@ class Board:
         else:
             square = self.__board[cell_coord[1]][cell_coord[0]]
             if square != None:
-                if square._white and self.__white_turn:
+                if square.white and self.__white_turn:
                     self.__piece_selected = True
                     self.__selected_coord = cell_coord
                     self.__target_coords = self.get_target_coords(cell_coord)
-                elif (not square._white) and (not self.__white_turn):
+                elif (not square.white) and (not self.__white_turn):
                     self.__piece_selected = True
                     self.__selected_coord = cell_coord
                     self.__target_coords = self.get_target_coords(cell_coord)
