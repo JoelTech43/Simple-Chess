@@ -1,6 +1,7 @@
 from pieces import Pawn, Rook, Knight, Bishop, Queen, King
 import pygame
 from pathlib import Path
+import copy
 
 CWD = Path.cwd()
 ASSETS = CWD/"assets"
@@ -14,7 +15,7 @@ def check_4_checks(board):
     for row in board.get_board():
         for square in row:
             if type(square) == King:
-                if square.white: #need to add king target squares in too? So that Kings can't attack each other?
+                if square.white:
                     white_king_coord = square.board_pos
                     white_target_coords.update(board.get_target_coords(square.board_pos, attacking_mode=True))
                 else:
@@ -467,32 +468,6 @@ class Board:
         
         return target_coords
 
-    # def check_4_checks(self, board=None):
-    #     if board == None:
-    #         board = self.__board
-    #     white_king_coord = None
-    #     black_king_coord = None
-
-    #     white_target_coords = set() #set of coordinates that white pieces are targetting
-    #     black_target_coords = set() #set of coords that black pieces are targetting
-    #     for row in board:
-    #         for square in row:
-    #             if type(square) == King:
-    #                 if square.white: #need to add king target squares in too? So that Kings can't attack each other?
-    #                     white_king_coord = square.board_pos
-    #                     white_target_coords.update(self.get_target_coords(square.board_pos, attacking_mode=True))
-    #                 else:
-    #                     black_king_coord = square.board_pos
-    #                     black_target_coords.update(self.get_target_coords(square.board_pos, attacking_mode=True))
-    #             elif type(square) in [Queen, Knight, Bishop, Rook, Pawn]:
-    #                 if square.white:
-    #                     white_target_coords.update(self.get_target_coords(square.board_pos, attacking_mode=True))
-    #                 else:
-    #                     black_target_coords.update(self.get_target_coords(square.board_pos, attacking_mode=True))
-        
-    #     # return white_king_coord in black_target_coords, black_king_coord in white_target_coords
-    #     return any(black_target_coord == white_king_coord for black_target_coord, _ in black_target_coords), any(white_target_coord == black_king_coord for white_target_coord, _ in white_target_coords)
-
     def handle_mouse_click(self, mouse_x, mouse_y):
         cell_coord = self.screen_coord_2_cell_coord(mouse_x, mouse_y)
         if self.__piece_selected:
@@ -651,3 +626,55 @@ class Board:
 
     def get_board(self):
         return self.__board
+
+    def check_4_checkmates(self, last_turn_white):
+        
+        #check if any move can block/evade check
+        checkmate = True
+
+        for row in self.__board:
+            for square in row:
+                if square in [King, Queen, Rook, Knight, Bishop, Pawn]:
+                    if square.white != last_turn_white:
+                        target_coords = self.get_target_coords(square.board_pos)
+                        for coord, special in target_coords:
+                            if not special and checkmate:
+                                temp = self.__board[coord]
+                                self.__board[coord] = self.__board[square.board_pos]
+                                self.__board[square.board_pos] = None
+                                white_in_check, black_in_check = check_4_checks(self)
+                                if (last_turn_white and not black_in_check) or (not last_turn_white and not white_in_check):
+                                    checkmate = False
+                                self.__board[square.board_pos] = self.__board[coord]
+                                self.__board[coord] = temp
+                            elif square in [Pawn] and special and not square.get_moved() and checkmate:
+                                if square.white:
+                                    if square.coord[1] == 7:
+                                        ... #promotion
+                                    else:
+                                        pawn = self.__board[square.board_pos[1]][square.board_pos[0]]
+                                        other = self.__board[coord[1]-1][coord[0]]
+                                        self.__board[coord[1]][coord[0]] = pawn
+                                        self.__board[square.board_pos[1]][square.board_pos[0]] = None
+                                        self.__board[coord[1]-1][coord[0]] = None
+                                        if (last_turn_white and not black_in_check) or (not last_turn_white and not white_in_check):
+                                            checkmate = False
+                                        self.__board[square.board_pos[1]][square.board_pos[0]] = pawn
+                                        self.__board[coord[1]-1][coord[0]] = other
+                                        self.__board[coord[1]][coord[0]] = None
+                                else:
+                                    if square.coord[1] == 0:
+                                        ... #promotion
+                                    else:
+                                        pawn = self.__board[square.board_pos[1]][square.board_pos[0]]
+                                        other = self.__board[coord[1]+1][coord[0]]
+                                        self.__board[coord[1]][coord[0]] = pawn
+                                        self.__board[square.board_pos[1]][square.board_pos[0]] = None
+                                        self.__board[coord[1]+1][coord[0]] = None
+                                        if (last_turn_white and not black_in_check) or (not last_turn_white and not white_in_check):
+                                            checkmate = False
+                                        self.__board[square.board_pos[1]][square.board_pos[0]] = pawn
+                                        self.__board[coord[1]+1][coord[0]] = other
+                                        self.__board[coord[1]][coord[0]] = None
+
+        return checkmate

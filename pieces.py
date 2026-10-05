@@ -26,6 +26,9 @@ class Piece:
         
         window.blit(self._image, (x_pos, y_pos))
 
+    def get_moved(self):
+        return self._moved
+
 class Pawn(Piece):
     def __init__(self, white, start_pos):
         super().__init__(white, start_pos)
