@@ -1,34 +1,10 @@
 from pieces import Pawn, Rook, Knight, Bishop, Queen, King
 import pygame
 from pathlib import Path
-import copy
 
 CWD = Path.cwd()
 ASSETS = CWD/"assets"
 
-def check_4_checks(board):
-    white_king_coord = None
-    black_king_coord = None
-
-    white_target_coords = set() #set of coordinates that white pieces are targetting
-    black_target_coords = set() #set of coords that black pieces are targetting
-    for row in board.get_board():
-        for square in row:
-            if type(square) == King:
-                if square.white:
-                    white_king_coord = square.board_pos
-                    white_target_coords.update(board.get_target_coords(square.board_pos, attacking_mode=True))
-                else:
-                    black_king_coord = square.board_pos
-                    black_target_coords.update(board.get_target_coords(square.board_pos, attacking_mode=True))
-            elif type(square) in [Queen, Knight, Bishop, Rook, Pawn]:
-                if square.white:
-                    white_target_coords.update(board.get_target_coords(square.board_pos, attacking_mode=True))
-                else:
-                    black_target_coords.update(board.get_target_coords(square.board_pos, attacking_mode=True))
-
-    # return white_king_coord in black_target_coords, black_king_coord in white_target_coords
-    return any(black_target_coord == white_king_coord for black_target_coord, _ in black_target_coords), any(white_target_coord == black_king_coord for white_target_coord, _ in white_target_coords)
 
 class Board:
     def __init__(self, size_px, screen_pos, window):
@@ -38,14 +14,14 @@ class Board:
         self.__board = [[None for i in range(8)] for j in range(8)]
         self.__window = window
         self.__wood_texture_path = ASSETS/"wood.png"
-        self.__wood_texture = None
+        self.__wood_texture = None #will hold the texture when later loaded/created.
 
-        self.__piece_selected = False
+        self.__piece_selected = False 
         self.__selected_coord = (-1, -1)
         self.__target_coords = list() # list of tuples. each tuple contains a tuple and a boolean. tuple is target coord, boolean is special move - true if en passant, castling or pawn promotion as more to do.
 
         self.__white_turn = True
-        self.__move_count = 0
+        self.__move_count = 0 #an overall move counter - pieces store the move_count when they were last moved to tell when they were moved for certain things like en passant.
 
     def reset_pieces(self):
         self.__board = [[None for i in range(8)] for j in range(8)]
@@ -77,10 +53,10 @@ class Board:
     def draw_game(self):
         for i in range(8):
             for j in range(8):
-                if (i+j)%2 == 0:
+                if (i+j)%2 == 0: #white squares
                     pygame.draw.rect(self.__window, (255,255,255), pygame.Rect(self.__screen_pos[0]+j*self.__square_size, self.__screen_pos[1]+i*self.__square_size, self.__square_size, self.__square_size))
                 else:
-                    if self.__wood_texture == None:
+                    if self.__wood_texture == None: #if wood not loaded
                         self.__wood_texture = pygame.image.load(self.__wood_texture_path).convert()
                         self.__wood_texture = pygame.transform.scale(self.__wood_texture, (self.__square_size, self.__square_size))
                     self.__window.blit(self.__wood_texture, (self.__screen_pos[0]+j*self.__square_size, self.__screen_pos[1]+i*self.__square_size))
@@ -90,66 +66,66 @@ class Board:
                 if square != None:
                     square.draw(self.__window, self.__screen_pos, self.__square_size)
     
-    def en_passant_possible(self, coord):
-        square = self.__board[coord[1]][coord[0]]
-        targets = []
+    def en_passant_possible(self, coord): #returns a list of targets that can be taken with en passant with the pawn at this coord.
+        square = self.__board[coord[1]][coord[0]] #the square of the pawn.
+        targets = [] 
 
-        if type(square) == Pawn:
-            if square.white and coord[1] == 4:
+        if type(square) == Pawn: #double check it is a pawn
+            if square.white and coord[1] == 4: #if white pawn, must be this row as that's where black pawns jump to.
+                if coord[0] >= 1: #not on left edge
+                    left = (coord[0]-1, coord[1]) #coord to left of pawn
+                    left_square = self.__board[left[1]][left[0]]
+                    if type(left_square) == Pawn:
+                        if left_square.moves == 1 and left_square.last_move_count_moved == self.__move_count-1 and self.__board[coord[1]+1][coord[0]-1] == None: #if left pawn has only moved once, and this was on the previous turn and the space to move into is free.
+                            targets.append(((coord[0]-1, coord[1]+1), True)) #adds the coordinate that our pawn will move to, along with a True boolean to flag that it is a special move
+
+                if coord[0] <= 6: #not on right edge
+                    right = (coord[0]+1, coord[1]) #coord to right of pawn
+                    right_square = self.__board[right[1]][right[0]]
+                    if type(right_square) == Pawn:
+                        if right_square.moves == 1 and right_square.last_move_count_moved == self.__move_count-1 and self.__board[coord[1]+1][coord[0]+1] == None:
+                            targets.append(((coord[0]+1, coord[1]+1), True))
+            
+            elif (not square.white) and coord[1] == 3: #same checks for black
                 if coord[0] >= 1:
                     left = (coord[0]-1, coord[1])
                     left_square = self.__board[left[1]][left[0]]
                     if type(left_square) == Pawn:
                         if left_square.moves == 1 and left_square.last_move_count_moved == self.__move_count-1 and self.__board[coord[1]-1][coord[0]-1] == None:
-                            targets.append(((coord[0]-1, coord[1]+1), True))
-
-                if coord[0] <= 6:
-                    right = (coord[0]+1, coord[1])
-                    right_square = self.__board[right[1]][right[0]]
-                    if type(right_square) == Pawn:
-                        if right_square.moves == 1 and right_square.last_move_count_moved == self.__move_count-1 and self.__board[coord[1]+1][coord[0]-1] == None:
-                            targets.append(((coord[0]+1, coord[1]+1), True))
-            
-            elif (not square.white) and coord[1] == 3:
-                if coord[0] >= 1:
-                    left = (coord[0]-1, coord[1])
-                    left_square = self.__board[left[1]][left[0]]
-                    if type(left_square) == Pawn:
-                        if left_square.moves == 1 and left_square.last_move_count_moved == self.__move_count-1 and self.__board[coord[1]+1][coord[0]-1] == None:
                             targets.append(((coord[0]-1, coord[1]-1), True))
 
                 if coord[0] <= 6:
                     right = (coord[0]+1, coord[1])
                     right_square = self.__board[right[1]][right[0]]
                     if type(right_square) == Pawn:
-                        if right_square.moves == 1 and right_square.last_move_count_moved == self.__move_count-1 and self.__board[coord[1]+1][coord[0]+1] == None:
+                        if right_square.moves == 1 and right_square.last_move_count_moved == self.__move_count-1 and self.__board[coord[1]-1][coord[0]+1] == None:
                             targets.append(((coord[0]+1, coord[1]-1), True))
         return targets
 
-    def castle_possible(self, coord):
+    def castle_possible(self, coord): #returns King target coords if able to castle
         square = self.__board[coord[1]][coord[0]]
         targets = []
         checks = []
 
         if type(square) == King:
-            if square.white:
+            if square.white: 
                 left_rook = self.__board[0][0]
                 right_rook = self.__board[0][7]
-                if square.moves == 0 and type(left_rook) == Rook and self.__board[0][1] == None and self.__board[0][2] == None:
-                    if left_rook.moves == 0:
-                        white_in_check, black_in_check = check_4_checks(self)
+                if square.moves == 0 and type(left_rook) == Rook and self.__board[0][1] == None and self.__board[0][2] == None: # if left rook is a rook, and king hasn't moved, and spaces between are clear.
+                    if left_rook.moves == 0: #if left rook has never moved
+                        white_in_check, black_in_check = self.check_4_checks() #process of moving king to each position, checking for checks, and then moving rook (and checking for checks)
                         checks.append(white_in_check)
                         self.__board[0][3], self.__board[0][2] = self.__board[0][2], self.__board[0][3] #move king one to left
                         self.__board[0][2].board_pos = (2,0)
-                        white_in_check, black_in_check = check_4_checks(self)
+                        white_in_check, black_in_check = self.check_4_checks()
                         checks.append(white_in_check)
                         self.__board[0][2], self.__board[0][1] = self.__board[0][1], self.__board[0][2] #move king one to left
                         self.__board[0][1].board_pos = (1,0)
-                        white_in_check, black_in_check = check_4_checks(self)
+                        white_in_check, black_in_check = self.check_4_checks()
                         checks.append(white_in_check)
                         self.__board[0][0], self.__board[0][2] = self.__board[0][2], self.__board[0][0] #move rook to position
                         self.__board[0][2].board_pos = (2,0)
-                        white_in_check, black_in_check = check_4_checks(self)
+                        white_in_check, black_in_check = self.check_4_checks()
                         checks.append(white_in_check)
 
                         self.__board[0][0], self.__board[0][2] = self.__board[0][2], self.__board[0][0] #move rook to og position
@@ -157,24 +133,24 @@ class Board:
                         self.__board[0][0].board_pos = (0,0)
                         self.__board[0][3].board_pos = (3,0)
 
-                        if not(True in checks):
-                            targets.append(((1,0), True))
+                        if not(True in checks): #if not currently in check and isn't at any subsequent position.
+                            targets.append(((1,0), True)) # king final coord, True as is special move.
                 
                 if square.moves == 0 and type(right_rook) == Rook and self.__board[0][4] == None and self.__board[0][5] == None and self.__board[0][6] == None:
                     if left_rook.moves == 0:
-                        white_in_check, black_in_check = check_4_checks(self)
+                        white_in_check, black_in_check = self.check_4_checks()
                         checks.append(white_in_check)
                         self.__board[0][3], self.__board[0][4] = self.__board[0][4], self.__board[0][3] #move king one to right
                         self.__board[0][4].board_pos = (4,0)
-                        white_in_check, black_in_check = check_4_checks(self)
+                        white_in_check, black_in_check = self.check_4_checks()
                         checks.append(white_in_check)
                         self.__board[0][4], self.__board[0][5] = self.__board[0][5], self.__board[0][4] #move king one to right
                         self.__board[0][5].board_pos = (5,0)
-                        white_in_check, black_in_check = check_4_checks(self)
+                        white_in_check, black_in_check = self.check_4_checks()
                         checks.append(white_in_check)
                         self.__board[0][7], self.__board[0][4] = self.__board[0][4], self.__board[0][7] #move rook to position
                         self.__board[0][4].board_pos = (4,0)
-                        white_in_check, black_in_check = check_4_checks(self)
+                        white_in_check, black_in_check = self.check_4_checks()
                         checks.append(white_in_check)
 
                         self.__board[0][7], self.__board[0][4] = self.__board[0][4], self.__board[0][7] #move rook to og position
@@ -189,19 +165,19 @@ class Board:
                 right_rook = self.__board[7][7]
                 if square.moves == 0 and type(left_rook) == Rook and self.__board[7][1] == None and self.__board[7][2] == None:
                     if left_rook.moves == 0:
-                        white_in_check, black_in_check = check_4_checks(self)
+                        white_in_check, black_in_check = self.check_4_checks()
                         checks.append(black_in_check)
                         self.__board[7][3], self.__board[7][2] = self.__board[7][2], self.__board[7][3] #move king one to left
                         self.__board[7][2].board_pos = (2,7)
-                        white_in_check, black_in_check = check_4_checks(self)
+                        white_in_check, black_in_check = self.check_4_checks()
                         checks.append(black_in_check)
                         self.__board[7][2], self.__board[7][1] = self.__board[7][1], self.__board[7][2] #move king one to left
                         self.__board[7][1].board_pos = (1,7)
-                        white_in_check, black_in_check = check_4_checks(self)
+                        white_in_check, black_in_check = self.check_4_checks()
                         checks.append(black_in_check)
                         self.__board[7][0], self.__board[7][2] = self.__board[7][2], self.__board[7][0] #move rook to position
                         self.__board[7][2].board_pos = (2,7)
-                        white_in_check, black_in_check = check_4_checks(self)
+                        white_in_check, black_in_check = self.check_4_checks()
                         checks.append(black_in_check)
 
                         self.__board[7][0], self.__board[7][2] = self.__board[7][2], self.__board[7][0] #move rook to og position
@@ -214,19 +190,19 @@ class Board:
                 
                 if square.moves == 0 and type(right_rook) == Rook and self.__board[7][4] == None and self.__board[7][5] == None and self.__board[7][6] == None:
                     if left_rook.moves == 0:
-                        white_in_check, black_in_check = check_4_checks(self)
+                        white_in_check, black_in_check = self.check_4_checks()
                         checks.append(black_in_check)
                         self.__board[7][3], self.__board[7][4] = self.__board[7][4], self.__board[7][3] #move king one to right
                         self.__board[7][4].board_pos = (4,7)
-                        white_in_check, black_in_check = check_4_checks(self)
+                        white_in_check, black_in_check = self.check_4_checks()
                         checks.append(black_in_check)
                         self.__board[7][4], self.__board[7][5] = self.__board[7][5], self.__board[7][4] #move king one to right
                         self.__board[7][5].board_pos = (5,7)
-                        white_in_check, black_in_check = check_4_checks(self)
+                        white_in_check, black_in_check = self.check_4_checks()
                         checks.append(black_in_check)
                         self.__board[7][7], self.__board[7][4] = self.__board[7][4], self.__board[7][7] #move rook to position
                         self.__board[7][4].board_pos = (4,7)
-                        white_in_check, black_in_check = check_4_checks(self)
+                        white_in_check, black_in_check = self.check_4_checks()
                         checks.append(black_in_check)
 
                         self.__board[7][7], self.__board[7][4] = self.__board[7][4], self.__board[7][7] #move rook to og position
@@ -240,11 +216,11 @@ class Board:
         return targets
 
     def screen_coord_2_cell_coord(self, screen_x, screen_y):
-        if self.__screen_pos[0]<=screen_x<=self.__screen_pos[0]+self.__size_px and self.__screen_pos[1]<=screen_y<=self.__screen_pos[1]+self.__size_px:
-            rel_screen_x, rel_screen_y = screen_x-self.__screen_pos[0], screen_y-self.__screen_pos[1]
-            return (rel_screen_x//self.__square_size, rel_screen_y//self.__square_size)
+        if self.__screen_pos[0]<=screen_x<=self.__screen_pos[0]+self.__size_px and self.__screen_pos[1]<=screen_y<=self.__screen_pos[1]+self.__size_px: #if in board
+            rel_screen_x, rel_screen_y = screen_x-self.__screen_pos[0], screen_y-self.__screen_pos[1] #screen position with (0,0) as top left of board
+            return (rel_screen_x//self.__square_size, rel_screen_y//self.__square_size) #DIV with square size to get coord.
         else:
-            return (-1,-1)
+            return (-1,-1) #not in board
 
     def get_target_coords(self, coord, attacking_mode=False): #does not include checking if target would leave own king in check. Normal mode gives all positions pieces can move too. Attacking mode affects pawns as it returns the diagonals they attack (instead of normal moves) even if no pieces are present. Also discounts castling as can't attack.
         square = self.__board[coord[1]][coord[0]]
@@ -487,7 +463,7 @@ class Board:
                     self.__white_turn = not self.__white_turn
                     self.__move_count += 1
 
-                    white_in_check, black_in_check = check_4_checks(self)
+                    white_in_check, black_in_check = self.check_4_checks()
                     if (not self.__white_turn and white_in_check) or ((self.__white_turn) and black_in_check): #look at not self.__white_turn when looking if white is in check as it is switched to black's turn as soon as white move made so if it is black's turn, white must have just moved. Vice versa for black.
                         self.__board[self.__selected_coord[1]][self.__selected_coord[0]] = self.__board[cell_coord[1]][cell_coord[0]]
                         self.__board[self.__selected_coord[1]][self.__selected_coord[0]].board_pos = self.__selected_coord
@@ -514,7 +490,7 @@ class Board:
                             self.__white_turn = not self.__white_turn
                             self.__move_count += 1
 
-                            white_in_check, black_in_check = check_4_checks(self)
+                            white_in_check, black_in_check = self.check_4_checks()
                             if (not self.__white_turn) and white_in_check:
                                 self.__board[self.__selected_coord[1]][self.__selected_coord[0]] = pawn
                                 self.__board[cell_coord[1]-1][cell_coord[0]] = other
@@ -541,7 +517,7 @@ class Board:
                             self.__white_turn = not self.__white_turn
                             self.__move_count += 1
 
-                            white_in_check, black_in_check = check_4_checks(self)
+                            white_in_check, black_in_check = self.check_4_checks()
                             if self.__white_turn and black_in_check:
                                 self.__board[self.__selected_coord[1]][self.__selected_coord[0]] = pawn
                                 self.__board[cell_coord[1]+1][cell_coord[0]] = other
@@ -639,14 +615,14 @@ class Board:
                         target_coords = self.get_target_coords(square.board_pos)
                         for coord, special in target_coords:
                             if not special and checkmate:
-                                temp = self.__board[coord]
-                                self.__board[coord] = self.__board[square.board_pos]
+                                temp = self.__board[coord[1]][coord[0]]
+                                self.__board[coord[1]][coord[0]] = self.__board[square.board_pos]
                                 self.__board[square.board_pos] = None
-                                white_in_check, black_in_check = check_4_checks(self)
+                                white_in_check, black_in_check = self.check_4_checks()
                                 if (last_turn_white and not black_in_check) or (not last_turn_white and not white_in_check):
                                     checkmate = False
-                                self.__board[square.board_pos] = self.__board[coord]
-                                self.__board[coord] = temp
+                                self.__board[square.board_pos] = self.__board[coord[1]][coord[0]]
+                                self.__board[coord[1]][coord[0]] = temp
                             elif square in [Pawn] and special and not square.get_moved() and checkmate:
                                 if square.white:
                                     if square.coord[1] == 7:
@@ -677,4 +653,28 @@ class Board:
                                         self.__board[coord[1]+1][coord[0]] = other
                                         self.__board[coord[1]][coord[0]] = None
 
-        return checkmate
+        return 
+    
+    def check_4_checks(self):
+        white_king_coord = None
+        black_king_coord = None
+
+        white_target_coords = set() #set of coordinates that white pieces are targetting
+        black_target_coords = set() #set of coords that black pieces are targetting
+        for row in self.get_board():
+            for square in row:
+                if type(square) == King:
+                    if square.white:
+                        white_king_coord = square.board_pos
+                        white_target_coords.update(self.get_target_coords(square.board_pos, attacking_mode=True))
+                    else:
+                        black_king_coord = square.board_pos
+                        black_target_coords.update(self.get_target_coords(square.board_pos, attacking_mode=True))
+                elif type(square) in [Queen, Knight, Bishop, Rook, Pawn]:
+                    if square.white:
+                        white_target_coords.update(self.get_target_coords(square.board_pos, attacking_mode=True))
+                    else:
+                        black_target_coords.update(self.get_target_coords(square.board_pos, attacking_mode=True))
+
+        # return white_king_coord in black_target_coords, black_king_coord in white_target_coords
+        return any(black_target_coord == white_king_coord for black_target_coord, _ in black_target_coords), any(white_target_coord == black_king_coord for white_target_coord, _ in white_target_coords)
